@@ -7,30 +7,17 @@ Original file is located at
     https://colab.research.google.com/drive/1_yExdmy6C53_8hag4635aptcFbB5uSsG
 """
 
-from google.colab import drive
-drive.mount('/content/drive')
+# from google.colab import drive
+# drive.mount('/content/drive')
 
-# do this just for the firt time
-!unzip /content/drive/MyDrive/VisionProject/dataset.zip -d /content/drive/MyDrive/VisionProject/images/
+# # do this just for the firt time
+# !unzip /content/drive/MyDrive/VisionProject/dataset.zip -d /content/drive/MyDrive/VisionProject/images/
 
+import os
 import cv2
 import numpy as np
-from google.colab.patches import cv2_imshow
+# from google.colab.patches import cv2_imshow
 from matplotlib import pyplot as plt
-
-"""# **TRACK A - Single Instance Detection**"""
-
-def compute_SNR(image):
-  # Convert the image to grayscale
-    gray_image = cv2.cvtColor(image, cv2.COLOR_RGB2GRAY)
-
-    # Compute the mean and standard deviation of the pixel values
-    mean = np.mean(gray_image)
-    std = np.std(gray_image)
-
-    # Compute the SNR
-    snr = mean / std
-    return snr
 
 def denoising(noisy_img):
 
@@ -66,12 +53,6 @@ def match(des_query, des_train):
 
   return good_matches
 
-from scipy import stats
-# import seaborn as sns
-def IQR_outlier(matchList):
-  #az methode softmax estefade kon age khasti in tabaro modify koni
-  return abfiltered_df
-
 MIN_MATCH_COUNT = 60
 
 # Initiate SIFT detector
@@ -83,21 +64,19 @@ reference_keypoints = []
 reference_descriptors = []
 
 for i in range(1, 15):
-  img = cv2.imread(f'drive/MyDrive/VisionProject/images/dataset/models/ref{i}.png', cv2.IMREAD_GRAYSCALE)
+  img = cv2.imread(f'dataset/models/ref{i}.png', cv2.IMREAD_GRAYSCALE)
   reference_images.append(img)
   kp, des = sift.detectAndCompute(img, None)
   reference_keypoints.append(kp)
   reference_descriptors.append(des)
 
-for i in range(1, 6):
-  img_train = cv2.imread(f'drive/MyDrive/VisionProject/images/dataset/scenes/scene{i}.png')
+for i in range(1, 2):
+  img_train = cv2.imread(f'dataset/scenes/scene{i}.png')
   img_train_d = cv2.cvtColor(denoising(img_train), cv2.COLOR_BGR2GRAY)
-  # img_train_d = denoising(img_train)
 
   kp_train = sift.detect(img_train_d)
   kp_train, des_train = sift.compute(img_train_d, kp_train)
-  # check_matches = []
-  # bounding_box = {}
+  
   for k in range(len(reference_images)):
     good_matches = match(reference_descriptors[k], des_train)
 
@@ -122,15 +101,10 @@ for i in range(1, 6):
       dst = cv2.perspectiveTransform(pts,M)
 
       # Drawing the bounding box
-      # check_matches.append(len(good_matches))
-      # bounding_box[len(good_matches)] = np.int32(dst)
       cv2.polylines(img_train,[np.int32(dst)],True,((9*(k + 1) % 255), 255, (5*(k + 1) % 255)),7, cv2.LINE_AA)
 
     else:
       print(f"Not enough matches are found - scene{i} in ref{k+1} - number of matches: {len(good_matches)}")
-  # mt = IQR_outlier(check_matches)
-  # print("update : ............. ", mt)
-  # for i in range(len(mt)):
-  #   cv2.polylines(img_train,[bounding_box[mt[i]]],True,((9*(k + 1) % 255), 255, (5*(k + 1) % 255)),7, cv2.LINE_AA)
+
   plt.imshow(cv2.cvtColor(img_train, cv2.COLOR_BGR2RGB))
   plt.show()
