@@ -3,8 +3,8 @@ import numpy as np
 import matplotlib.pyplot as plt
 from Product_Recognition import match, denoising, plot_images
 def main():
-    MIN_MATCH_COUNT = 60
-
+    MIN_MATCH_COUNT = 20
+    MIN_MATCH_MASK_COUNT = 10
     # Initiate SIFT detector
     sift = cv2.xfeatures2d.SIFT_create()
 
@@ -31,10 +31,12 @@ def main():
         kp_train, des_train = sift.compute(img_train_d, kp_train)
 
         for k in range(len(reference_images)):
+            
             good_matches = match(reference_descriptors[k], des_train)
+            lgm = len(good_matches)
 
-            if len(good_matches) > MIN_MATCH_COUNT:
-                print(f"scene{i} in ref{k+1} - number of matches: {len(good_matches)}")
+            if lgm > MIN_MATCH_COUNT:
+                print(f"scene{i} in ref{k+1} - number of matches: {lgm}")
 
                 # building the corrspondences arrays of good matches
                 src_pts = np.float32([ reference_keypoints[k][m.queryIdx].pt for m in good_matches ]).reshape(-1,1,2)
@@ -46,17 +48,21 @@ def main():
 
                 # Mask of discarded point used in visualization
                 matchesMask = mask.ravel().tolist()
-                print("matchesMAsk : ",sum(matchesMask))
+                l = sum(matchesMask)
+                ratio = (lgm - l) / lgm
+                print("ration : ", ratio)
+                if l >= MIN_MATCH_MASK_COUNT  and ratio < 0.62:
+                    # Corners of the query image
+                    h,w = reference_images[k].shape
+                    pts = np.float32([ [0,0],[0,h-1],[w-1,h-1],[w-1,0] ]).reshape(-1,1,2)
 
-                # Corners of the query image
-                h,w = reference_images[k].shape
-                pts = np.float32([ [0,0],[0,h-1],[w-1,h-1],[w-1,0] ]).reshape(-1,1,2)
+                    # Projecting the corners into the train image
+                    dst = cv2.perspectiveTransform(pts,M)
 
-                # Projecting the corners into the train image
-                dst = cv2.perspectiveTransform(pts,M)
-
-                # Drawing the bounding box
-                cv2.polylines(img_train,[np.int32(dst)],True,((9*(k + 1) % 255), 255, (5*(k + 1) % 255)),7, cv2.LINE_AA)
+                    # Drawing the bounding box
+                    cv2.polylines(img_train,[np.int32(dst)],True,((9*(k + 1) % 255), 255, (5*(k + 1) % 255)),7, cv2.LINE_AA)
+                else:
+                    print(f"Not enough matchmask are found - scene{i} in ref{k+1} - number of matchmask: {l}")
 
             else:
                 print(f"Not enough matches are found - scene{i} in ref{k+1} - number of matches: {len(good_matches)}")

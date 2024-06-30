@@ -46,8 +46,15 @@ def match(des_query, des_train):
 def plot_images(images):
 
     fig = plt.figure(figsize=(20, 20))
+    rows = 1
     columns = 1
-    rows = len(images)
+    if len(images) % 2 == 0:
+        columns = len(images) / 2
+        rows = len(images) / 2
+    else:
+        columns = int(len(images) / 2)
+        rows = int(len(images) / 2) + 1
+
     for i in range(len(images)):
         fig.add_subplot(rows, columns, i+1)
         plt.imshow(images[i])
