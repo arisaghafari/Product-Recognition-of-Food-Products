@@ -1,7 +1,7 @@
 import cv2
 import numpy as np
-from matplotlib import pyplot as plt
-from Product_Recognition import match, denoising
+import matplotlib.pyplot as plt
+from Product_Recognition import match, denoising, plot_images
 def main():
     MIN_MATCH_COUNT = 60
 
@@ -21,6 +21,7 @@ def main():
         reference_keypoints.append(kp)
         reference_descriptors.append(des)
 
+    images = []
     for i in range(1, 6):
     #   img_train = cv2.imread(f'drive/MyDrive/VisionProject/images/dataset/scenes/scene{i}.png')
         img_train = cv2.imread(f'dataset/scenes/scene{i}.png')
@@ -28,7 +29,7 @@ def main():
 
         kp_train = sift.detect(img_train_d)
         kp_train, des_train = sift.compute(img_train_d, kp_train)
-  
+
         for k in range(len(reference_images)):
             good_matches = match(reference_descriptors[k], des_train)
 
@@ -60,8 +61,9 @@ def main():
             else:
                 print(f"Not enough matches are found - scene{i} in ref{k+1} - number of matches: {len(good_matches)}")
 
-    plt.imshow(cv2.cvtColor(img_train, cv2.COLOR_BGR2RGB))
-    plt.show()
+        images.append(cv2.cvtColor(img_train, cv2.COLOR_BGR2RGB)) 
+     
+    plot_images(images)
 
 if __name__ == "__main__":
     main()
