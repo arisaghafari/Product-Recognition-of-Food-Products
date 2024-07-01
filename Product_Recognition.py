@@ -45,7 +45,7 @@ def match(des_query, des_train):
 
 def plot_images(images):
 
-    fig = plt.figure(figsize=(20, 20))
+    fig = plt.figure(figsize=(30 ,30))
     rows = 1
     columns = 1
 
@@ -54,7 +54,8 @@ def plot_images(images):
         rows = len(images) / 2
     else:
         columns = int(len(images) / 2) + 1
-        rows = int(len(images) / 2) + 1
+        rows = int(len(images) / 2) 
+
 
     for i in range(len(images)):
         fig.add_subplot(rows, columns, i+1)
@@ -62,6 +63,15 @@ def plot_images(images):
         plt.axis('off')
 
     plt.show()
+    # f, axs = plt.subplots(rows, columns, figsize=(30,30))
+    # count = 0
+    # for x in axs.flatten(): 
+    #     if count != len(images):
+    #         x.imshow(images[count]) ; x.axis('off')
+    #         count += 1
+    # plt.show()
+
+
 
 def template_matching_Zncc(image, template):
     
@@ -74,7 +84,7 @@ def template_matching_Zncc(image, template):
 
     if w_i < w_t:
         template = template[y:y+h_t, x:x+w_i]
-        
+
     result = cv2.matchTemplate(image, template, cv2.TM_CCOEFF_NORMED)
 
     # Find the location of the best match

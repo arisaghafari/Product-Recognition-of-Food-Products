@@ -6,6 +6,7 @@ def main():
     MIN_MATCH_COUNT = 20
     MIN_MATCH_MASK_COUNT = 10
     MIN_MAX_VAL = 0.37
+    
     # Initiate SIFT detector
     sift = cv2.xfeatures2d.SIFT_create()
 
@@ -50,9 +51,6 @@ def main():
                 # Mask of discarded point used in visualization
                 matchesMask = mask.ravel().tolist()
                 l = sum(matchesMask)
-                # ratio = (lgm - l) / lgm
-                # print("ration : ", ratio)
-                # print("l : ", l)
 
                 if l >= MIN_MATCH_MASK_COUNT:
 
@@ -77,14 +75,7 @@ def main():
                     
                     if max_Val >= MIN_MAX_VAL:
                         # Drawing the bounding box
-                        print(max_Val)
                         cv2.polylines(img_train,[np.int32(dst)],True,((9*(k + 1) % 255), 255, (5*(k + 1) % 255)),7, cv2.LINE_AA)
-
-            #     else:
-            #         print(f"Not enough matchmask are found - scene{i} in ref{k+1} - number of matchmask: {l}")
-
-            # else:
-            #     print(f"Not enough matches are found - scene{i} in ref{k+1} - number of matches: {len(good_matches)}")
 
         images.append(cv2.cvtColor(img_train, cv2.COLOR_BGR2RGB)) 
      
