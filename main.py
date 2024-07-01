@@ -22,7 +22,7 @@ def main():
         reference_descriptors.append(des)
 
     images = []
-    for i in range(1, 6):
+    for i in range(4, 5):
     #   img_train = cv2.imread(f'drive/MyDrive/VisionProject/images/dataset/scenes/scene{i}.png')
         img_train = cv2.imread(f'dataset/scenes/scene{i}.png')
         img_train_d = cv2.cvtColor(denoising(img_train), cv2.COLOR_BGR2GRAY)
@@ -51,6 +51,7 @@ def main():
                 l = sum(matchesMask)
                 ratio = (lgm - l) / lgm
                 print("ration : ", ratio)
+                print("l : ", l)
                 if l >= MIN_MATCH_MASK_COUNT  and ratio < 0.62:
                     # Corners of the query image
                     h,w = reference_images[k].shape

@@ -11,9 +11,9 @@ from matplotlib import pyplot as plt
 
 def denoising(noisy_img):
 
-  median_denoised = cv2.medianBlur(noisy_img, 3)
-  nl_means_denoised = cv2.fastNlMeansDenoisingColored(median_denoised, None, 5, 5, 5, 21)
-  bilateral_denoised = cv2.bilateralFilter(nl_means_denoised, 9, 75, 75)
+  median_denoised = cv2.medianBlur(noisy_img, 5)
+  # nl_means_denoised = cv2.fastNlMeansDenoisingColored(median_denoised, None, 5, 5, 5, 21)
+  bilateral_denoised = cv2.bilateralFilter(median_denoised, d=7, sigmaColor=75, sigmaSpace=75)
 
   return bilateral_denoised
 
@@ -48,15 +48,17 @@ def plot_images(images):
     fig = plt.figure(figsize=(20, 20))
     rows = 1
     columns = 1
+
     if len(images) % 2 == 0:
         columns = len(images) / 2
         rows = len(images) / 2
     else:
-        columns = int(len(images) / 2)
+        columns = int(len(images) / 2) + 1
         rows = int(len(images) / 2) + 1
 
     for i in range(len(images)):
         fig.add_subplot(rows, columns, i+1)
         plt.imshow(images[i])
         plt.axis('off')
+
     plt.show()
