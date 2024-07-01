@@ -62,3 +62,22 @@ def plot_images(images):
         plt.axis('off')
 
     plt.show()
+
+def template_matching_Zncc(image, template):
+    
+    h_i, w_i = image.shape
+  
+    x, y, w_t, h_t = cv2.boundingRect(template)
+
+    if h_i < h_t:
+        template = template[y:y+h_i, x:x+w_t]
+
+    if w_i < w_t:
+        template = template[y:y+h_t, x:x+w_i]
+        
+    result = cv2.matchTemplate(image, template, cv2.TM_CCOEFF_NORMED)
+
+    # Find the location of the best match
+    min_val, max_val, min_loc, max_loc = cv2.minMaxLoc(result)
+
+    return max_val
