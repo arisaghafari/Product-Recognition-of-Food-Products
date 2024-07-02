@@ -1,7 +1,6 @@
 import cv2
 import numpy as np
-import matplotlib.pyplot as plt
-from Single_Product_Recognition import match, denoising, plot_images, template_matching_Zncc
+from Single_Product_Recognition import *
 import random
 
 def main():
@@ -54,7 +53,7 @@ def main():
                 # Mask of discarded point used in visualization
                 matchesMask = mask.ravel().tolist()
                 l = sum(matchesMask)
-
+                # print("min match mask count : ", MIN_MATCH_MASK_COUNT)
                 if l >= MIN_MATCH_MASK_COUNT:
 
                     # Corners of the query image
@@ -75,7 +74,8 @@ def main():
                     
                     # Template_matching
                     max_Val = template_matching_Zncc(img_train_d, resized_image)
-                    
+                    # print("maxval : ", max_Val)
+
                     if max_Val >= MIN_MAX_VAL:
                         r = random.randint(0, 1)
                         b = random.randint(0, 1)
