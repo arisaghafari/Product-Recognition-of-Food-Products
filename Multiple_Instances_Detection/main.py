@@ -18,11 +18,11 @@ def main():
         'best_matches_points': 500
     }
 
-    for i in range(6, 13):
+    for i in range(8, 9):
         print(f".......................SCENE{i}......................\n")
         img1 = cv2.imread(f'../dataset/scenes/scene{i}.png') # Image
         img_copy = img1.copy()
-        img1_d = denoise(img_copy)
+        img1_d = denoising(img_copy)
 
         # Convert to RGB
         img1 = cv2.cvtColor(img1, cv2.COLOR_BGR2RGB)

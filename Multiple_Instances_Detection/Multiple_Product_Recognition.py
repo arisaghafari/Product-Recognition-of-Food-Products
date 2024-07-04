@@ -8,7 +8,8 @@ from Single_Instance_Detection.Single_Product_Recognition import *
 import math
 
 def find_matching_boxes(image, refrence_images, params):
-
+    MAX_RATIO = 0.55
+    MAX_DISTANCE = 14
     MIN_MATCH_COUNT = 260
     MIN_MATCH_MASK_COUNT = 10
     # Parameters and their default values
@@ -47,26 +48,30 @@ def find_matching_boxes(image, refrence_images, params):
                 H, mask = cv2.findHomography(points2, points1, cv2.RANSAC, 2)
 
                 matchesMask = mask.ravel().tolist()
-                
-                thre = color_matching(keypoints1, keypoints2, matchesMask, matching_img, refrence_images[i])
-                print("threshold : ", thre)
                 l = sum(matchesMask)
+
+                dis_sum, counter = color_matching(keypoints1, keypoints2, matchesMask, matching_img, refrence_images[i], good_matches)
+                ratio = counter / l
+
+                print("distance : ", dis_sum)
+                print("ratio : ", ratio)
+                
                 print("match mastk : ", l)
-                if l >= MIN_MATCH_MASK_COUNT:
+                if l >= MIN_MATCH_MASK_COUNT and (ratio <= MAX_RATIO or dis_sum <= MAX_DISTANCE):
                     # template_matching(points2)
                     # Transform the corners of the template to the matching points in the image
                     h, w = refrence_images[i].shape[:2]
                     corners = np.float32([[0, 0], [0, h-1], [w-1, h-1], [w-1, 0]]).reshape(-1, 1, 2)
                     transformed_corners = cv2.perspectiveTransform(corners, H)
-                    matched_boxes.append(transformed_corners)
+                    matched_boxes.append((transformed_corners, i))
 
-                    # You can uncomment the following lines to see the matching process
-                    # Draw the bounding box
-                    img1_with_box = matching_img.copy()
-                    matching_result = cv2.drawMatches(img1_with_box, keypoints1, refrence_images[i], keypoints2, good_matches, None, flags=cv2.DrawMatchesFlags_NOT_DRAW_SINGLE_POINTS)
-                    cv2.polylines(matching_result, [np.int32(transformed_corners)], True, (255, 0, 0), 3, cv2.LINE_AA)
-                    plt.imshow(matching_result, cmap='gray')
-                    plt.show()
+                    # # You can uncomment the following lines to see the matching process
+                    # # Draw the bounding box
+                    # img1_with_box = matching_img.copy()
+                    # matching_result = cv2.drawMatches(img1_with_box, keypoints1, refrence_images[i], keypoints2, good_matches, None, flags=cv2.DrawMatchesFlags_NOT_DRAW_SINGLE_POINTS)
+                    # cv2.polylines(matching_result, [np.int32(transformed_corners)], True, (255, 0, 0), 3, cv2.LINE_AA)
+                    # plt.imshow(matching_result, cmap='gray')
+                    # plt.show()
 
                     # Create a mask and fill the matched area with near neighbors
                     matching_img2 = cv2.cvtColor(matching_img, cv2.COLOR_BGR2GRAY) 
@@ -91,15 +96,12 @@ def find_matching_boxes(image, refrence_images, params):
 
 def plot_boxes(img1, matched_boxes):
     for box in matched_boxes:
-        cv2.polylines(img1, [np.int32(box)], True, (0, 255, 0), 3, cv2.LINE_AA)
-    
+        cv2.polylines(img1, [np.int32(box[0])], True, (0, 255, 0), 3, cv2.LINE_AA)
+        # print("box ...................... : ",box)
+        x, y, w_d, h_d = cv2.boundingRect(box[0])
+        cv2.putText(img1, f"refrence_{box[1] + 15}", (x, y - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.9, (36,255,12), 2)
     plt.imshow(img1)
     plt.show()
-
-def old_denoise(src):
-    dn = cv2.medianBlur(src, 5)
-    # dn = cv.bilateralFilter(dn, 9, 75, 75)
-    return dn
 
 def denoise(src):
     # Create the AdaptiveManifoldFilter with required arguments
@@ -108,17 +110,78 @@ def denoise(src):
     am_filter = cv2.ximgproc.createAMFilter(sigma_s, sigma_r, False)
 
     # Apply the filter
-    dst = old_denoise(src)
+    dst = denoising(src)
     dst = am_filter.filter(dst)
 
     return dst
 
-def color_matching(key_train, key_ref, matchmask, img_train, img_ref):
+def color_matching(key_train, key_ref, matchmask, img_train, img_ref, good_matches):
+    MAX_DIST = 60
     print("................ATTENTION........................")
-    img_t = cv2.cvtColor(img_train, cv2.COLOR_RGB2HSV)
-    img_r = cv2.cvtColor(img_ref, cv2.COLOR_RGB2HSV)
+    img_t = np.copy(img_train)
+    img_r = np.copy(img_ref)
+    img_t = denoise(img_t)
+    # img_t = cv2.cvtColor(img_train, cv2.COLOR_RGB2HSV)
+    # img_r = cv2.cvtColor(img_ref, cv2.COLOR_RGB2HSV)
+
+# building the corrspondences arrays of good matches
+    point_train = np.float32([ key_train[m.queryIdx].pt for m in good_matches ])
+    point_ref = np.float32([ key_ref[m.trainIdx].pt for m in good_matches ])
+    
+    size_train = np.float32([key_train[m.queryIdx].size for m in good_matches])
+    size_ref = np.float32([key_ref[m.trainIdx].size for m in good_matches])
+
+    sum = 0
+    counter = 0
+    for i in range(len(matchmask)):
+        if matchmask[i] == 1: #inlier
+            x_ref = int(point_ref[i][0])
+            y_ref = int(point_ref[i][1])
+            size_r = int(size_ref[i] * math.sqrt(2))
+            size_r = 100
+            window_red_r = img_r[y_ref:y_ref+size_r, x_ref:x_ref+size_r, 0]
+            window_green_r = img_r[y_ref:y_ref+size_r, x_ref:x_ref+size_r, 1]
+            window_blue_r = img_r[y_ref:y_ref+size_r, x_ref:x_ref+size_r, 2]
+            # img_ref[y_ref:y_ref+size_r, x_ref:x_ref+size_r]
+            
+            x_t = int(point_train[i][0])
+            y_t = int(point_train[i][1])
+            size_t = int(size_train[i] * math.sqrt(2))
+            window_red_t = img_t[y_t:y_t+size_t, x_t:x_t+size_t, 0]
+            window_green_t = img_t[y_t:y_t+size_t, x_t:x_t+size_t, 1]
+            window_blue_t = img_t[y_t:y_t+size_t, x_t:x_t+size_t, 2]
+
+            if window_red_r.size != 0 and window_green_r.size != 0 and window_blue_r.size != 0:
+                if window_red_t.size != 0 and window_green_t.size != 0 and window_blue_t.size != 0:
+                
+                    try:
+                        value_1 = (np.mean(window_red_r), np.mean(window_green_r), np.mean(window_blue_r))
+                    except ZeroDivisionError:
+                        print("Encountered division by zero while calculating mean value1.")
+                        return 1000000, 100000
+
+                    try:
+                        value_2 = (np.mean(window_red_t), np.mean(window_green_t), np.mean(window_blue_t))
+                    except ZeroDivisionError:
+                        print("Encountered division by zero while calculating mean value2.")
+                        return 1000000, 100000  
+
+                    dist = color_distance_compute(value_1, value_2)
+
+                    print("distance : ", dist)
+                    if dist >= MAX_DIST:
+                        counter += 1
+                
+                    sum += dist
+
+    print(counter)
+    return (sum/len(matchmask), counter)
+            
 
     
 
-def color_distance_compute(pxls1, pxls2):
-    pass
+def color_distance_compute(val1, val2):
+    r_1, g_1, b_1 = val1
+    r_2, g_2, b_2 = val2
+
+    return math.sqrt((r_1 - r_2)**2 + (g_1 - g_2)**2 + (b_1 - b_2)**2)
