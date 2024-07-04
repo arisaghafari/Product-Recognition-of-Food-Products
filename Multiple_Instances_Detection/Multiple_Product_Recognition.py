@@ -8,7 +8,8 @@ from Single_Instance_Detection.Single_Product_Recognition import *
 import math
 
 def find_matching_boxes(image, refrence_images, params):
-
+    MAX_RATIO = 0.55
+    MAX_DISTANCE = 14
     MIN_MATCH_COUNT = 260
     MIN_MATCH_MASK_COUNT = 10
     # Parameters and their default values
@@ -56,21 +57,21 @@ def find_matching_boxes(image, refrence_images, params):
                 print("ratio : ", ratio)
                 
                 print("match mastk : ", l)
-                if l >= MIN_MATCH_MASK_COUNT:
+                if l >= MIN_MATCH_MASK_COUNT and (ratio <= MAX_RATIO or dis_sum <= MAX_DISTANCE):
                     # template_matching(points2)
                     # Transform the corners of the template to the matching points in the image
                     h, w = refrence_images[i].shape[:2]
                     corners = np.float32([[0, 0], [0, h-1], [w-1, h-1], [w-1, 0]]).reshape(-1, 1, 2)
                     transformed_corners = cv2.perspectiveTransform(corners, H)
-                    matched_boxes.append(transformed_corners)
+                    matched_boxes.append((transformed_corners, i))
 
-                    # You can uncomment the following lines to see the matching process
-                    # Draw the bounding box
-                    img1_with_box = matching_img.copy()
-                    matching_result = cv2.drawMatches(img1_with_box, keypoints1, refrence_images[i], keypoints2, good_matches, None, flags=cv2.DrawMatchesFlags_NOT_DRAW_SINGLE_POINTS)
-                    cv2.polylines(matching_result, [np.int32(transformed_corners)], True, (255, 0, 0), 3, cv2.LINE_AA)
-                    plt.imshow(matching_result, cmap='gray')
-                    plt.show()
+                    # # You can uncomment the following lines to see the matching process
+                    # # Draw the bounding box
+                    # img1_with_box = matching_img.copy()
+                    # matching_result = cv2.drawMatches(img1_with_box, keypoints1, refrence_images[i], keypoints2, good_matches, None, flags=cv2.DrawMatchesFlags_NOT_DRAW_SINGLE_POINTS)
+                    # cv2.polylines(matching_result, [np.int32(transformed_corners)], True, (255, 0, 0), 3, cv2.LINE_AA)
+                    # plt.imshow(matching_result, cmap='gray')
+                    # plt.show()
 
                     # Create a mask and fill the matched area with near neighbors
                     matching_img2 = cv2.cvtColor(matching_img, cv2.COLOR_BGR2GRAY) 
@@ -95,8 +96,10 @@ def find_matching_boxes(image, refrence_images, params):
 
 def plot_boxes(img1, matched_boxes):
     for box in matched_boxes:
-        cv2.polylines(img1, [np.int32(box)], True, (0, 255, 0), 3, cv2.LINE_AA)
-    
+        cv2.polylines(img1, [np.int32(box[0])], True, (0, 255, 0), 3, cv2.LINE_AA)
+        # print("box ...................... : ",box)
+        x, y, w_d, h_d = cv2.boundingRect(box[0])
+        cv2.putText(img1, f"refrence_{box[1] + 15}", (x, y - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.9, (36,255,12), 2)
     plt.imshow(img1)
     plt.show()
 
@@ -113,6 +116,7 @@ def denoise(src):
     return dst
 
 def color_matching(key_train, key_ref, matchmask, img_train, img_ref, good_matches):
+    MAX_DIST = 60
     print("................ATTENTION........................")
     img_t = np.copy(img_train)
     img_r = np.copy(img_ref)
@@ -165,15 +169,10 @@ def color_matching(key_train, key_ref, matchmask, img_train, img_ref, good_match
                     dist = color_distance_compute(value_1, value_2)
 
                     print("distance : ", dist)
-                    if dist >= 50:
+                    if dist >= MAX_DIST:
                         counter += 1
                 
                     sum += dist
-                else:
-                    print("cheraaaaaaaaaaaaaaaaaaaaaaaa")
-            else:
-                print("whyyyyyyyyyyyyyyyyyyyyyyyyyy")
-                return 0, 0
 
     print(counter)
     return (sum/len(matchmask), counter)
