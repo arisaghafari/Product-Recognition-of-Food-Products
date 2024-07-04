@@ -1,12 +1,5 @@
-# from google.colab import drive
-# drive.mount('/content/drive')
-
-# # do this just for the firt time
-# !unzip /content/drive/MyDrive/VisionProject/dataset.zip -d /content/drive/MyDrive/VisionProject/images/
-
 import cv2
 import numpy as np
-# from google.colab.patches import cv2_imshow
 from matplotlib import pyplot as plt
 
 def denoising(noisy_img):
@@ -54,7 +47,7 @@ def plot_images(images):
         rows = int(len(images) / 2)
     else:
         columns = int(len(images) / 2) + 1
-        rows = int(len(images) / 2) +1
+        rows = int(len(images) / 2) + 1
 
 
     for i in range(len(images)):
@@ -63,15 +56,6 @@ def plot_images(images):
         plt.axis('off')
 
     plt.show()
-    # f, axs = plt.subplots(rows, columns, figsize=(30,30))
-    # count = 0
-    # for x in axs.flatten(): 
-    #     if count != len(images):
-    #         x.imshow(images[count]) ; x.axis('off')
-    #         count += 1
-    # plt.show()
-
-
 
 def template_matching_Zncc(image, template):
     
