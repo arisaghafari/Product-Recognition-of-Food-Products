@@ -73,9 +73,9 @@ def main():
                     resized_image = cv2.resize(reference_images[k], dsize, interpolation=cv2.INTER_LINEAR)
                     
                     # Template_matching
-                    max_Val = template_matching_Zncc(img_train_d, resized_image)
+                    # max_Val = template_matching_Zncc(img_train_d, resized_image)
                     # print("maxval : ", max_Val)
-
+                    max_Val = 0.37
                     if max_Val >= MIN_MAX_VAL:
                         r = random.randint(0, 1)
                         b = random.randint(0, 1)
@@ -83,6 +83,7 @@ def main():
                             b = 0
                         # Drawing the bounding box
                         cv2.polylines(img_train,[np.int32(dst)],True,(r*255, 255, b*255),15, cv2.LINE_AA)
+                        cv2.putText(img_train, f"refrence_{k}", (x, y + 10), cv2.FONT_HERSHEY_SIMPLEX, 1, (r*255, 255, b*255), 4)
 
         images.append(cv2.cvtColor(img_train, cv2.COLOR_BGR2RGB)) 
      
