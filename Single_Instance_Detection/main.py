@@ -5,7 +5,7 @@ import random
 
 def main():
     MIN_MATCH_COUNT = 20
-    MIN_MATCH_MASK_COUNT = 10
+    MIN_MATCH_MASK_COUNT = 9
     MIN_MAX_VAL = 0.37
     
     # Initiate SIFT detector
@@ -40,7 +40,7 @@ def main():
             lgm = len(good_matches)
 
             if lgm >= MIN_MATCH_COUNT:
-                # print(f"scene{i} in ref{k+1} - number of matches: {lgm}")
+                print(f"scene{i} in ref{k+1} - number of matches: {lgm}")
 
                 # building the corrspondences arrays of good matches
                 src_pts = np.float32([ reference_keypoints[k][m.queryIdx].pt for m in good_matches ]).reshape(-1,1,2)
@@ -53,7 +53,7 @@ def main():
                 # Mask of discarded point used in visualization
                 matchesMask = mask.ravel().tolist()
                 l = sum(matchesMask)
-                # print("min match mask count : ", MIN_MATCH_MASK_COUNT)
+                print("min match mask count : ", l)
                 if l >= MIN_MATCH_MASK_COUNT:
 
                     # Corners of the query image
@@ -73,17 +73,22 @@ def main():
                     resized_image = cv2.resize(reference_images[k], dsize, interpolation=cv2.INTER_LINEAR)
                     
                     # Template_matching
-                    # max_Val = template_matching_Zncc(img_train_d, resized_image)
+                    max_Val = template_matching_Zncc(img_train_d, resized_image)
+
                     # print("maxval : ", max_Val)
-                    max_Val = 0.37
                     if max_Val >= MIN_MAX_VAL:
-                        r = random.randint(0, 1)
-                        b = random.randint(0, 1)
-                        if r == 1 and b == 1:
+                        r = random.randint(0, 2)
+                        b = random.randint(0, 2)
+                        g = random.randint(0,2)
+                        if r == 2 and b == 2 and g == 2:
                             b = 0
+                        if r == 0 and b == 0 and g == 0:
+                            g = 2
                         # Drawing the bounding box
-                        cv2.polylines(img_train,[np.int32(dst)],True,(r*255, 255, b*255),15, cv2.LINE_AA)
-                        cv2.putText(img_train, f"refrence_{k}", (x, y + 10), cv2.FONT_HERSHEY_SIMPLEX, 1, (r*255, 255, b*255), 4)
+                        cv2.polylines(img_train,[np.int32(dst)],True,(r*127, g*127, b*127),15, cv2.LINE_AA)
+
+                        # size = int((w_d*h_d)/150000)
+                        cv2.putText(img_train, f"ref_{k+1}", (x + int(w_d/2) - 30, y + 100), cv2.FONT_HERSHEY_SIMPLEX, 2, (r*127, g*127, b*127), 10)
 
         images.append(cv2.cvtColor(img_train, cv2.COLOR_BGR2RGB)) 
      
