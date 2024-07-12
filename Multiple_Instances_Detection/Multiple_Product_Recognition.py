@@ -6,7 +6,6 @@ import os
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from Single_Instance_Detection.Single_Product_Recognition import *
 import math
-from HoughTransform import *
 
 IMAGE_INDEX = 0
 KEY_INDEX = 1
@@ -15,11 +14,11 @@ CENTER_INDEX = 3
 V_INDEX = 4
 
 def find_matching_boxes(img_train, refrence_images_features, params):
-    
-    MAX_RATIO = 0.55
-    MAX_DISTANCE = 44
-    MIN_MATCH_COUNT = 260
+
+    # Parameters to tune    
+    MIN_MATCH_COUNT = 302
     MIN_MATCH_MASK_COUNT = 10
+    MIN_MAX_VAL = 0.37
     # Parameters and their default values
     SIFT_DISTANCE_THRESHOLD = params.get('SIFT_distance_threshold', 0.5)
     BEST_MATCHES_POINTS = params.get('best_matches_points', 20)
@@ -34,6 +33,7 @@ def find_matching_boxes(img_train, refrence_images_features, params):
 
         flag = True
         count = 0
+        # prev_num = [0,0,0]
         while(flag):
             # Match descriptors
             keypoints_s, descriptors_s = detector.detectAndCompute(matching_img, None)
@@ -47,19 +47,7 @@ def find_matching_boxes(img_train, refrence_images_features, params):
             if len(good_matches) >= MIN_MATCH_COUNT:
                 print("there is enough match numbers : ", len(good_matches))    
                 # Extract location of good matches
-
-                #Hough 
-                # V = VotingVectors(good_matches,refrence_images_features, key)
-                # ACC, G_scene, Accumulator_Array_Points = Accumulator_Array(ACC_ARRAY_CELL_DIMENSION_1,
-                #                                                       ACC_ARRAY_CELL_DIMENSION_2,
-                #                                                       scene_img, 
-                #                                                       model_img,
-                #                                                       model_images_features, 
-                #                                                       m_scenes_images_features, 
-                #                                                       good, 
-                #                                                       V, 
-                #                                                       i, j)
-
+                
                 points1 = np.float32([keypoints_s[m.queryIdx].pt for m in good_matches])
                 points2 = np.float32([value[KEY_INDEX][m.trainIdx].pt for m in good_matches])
 
@@ -70,12 +58,12 @@ def find_matching_boxes(img_train, refrence_images_features, params):
                 matchesMask = mask.ravel().tolist()
                 l = sum(matchesMask)
 
-                dis_sum, counter = color_matching(keypoints_s,
-                                                   value[KEY_INDEX], matchesMask, matching_img, value[IMAGE_INDEX], good_matches)
-                ratio = counter / l
+                # dis_sum, counter = color_matching(keypoints_s,
+                #                                    value[KEY_INDEX], matchesMask, matching_img, value[IMAGE_INDEX], good_matches)
+                # ratio = counter / l
 
-                print("distance : ", dis_sum)
-                print("ratio : ", ratio)
+                # print("distance : ", dis_sum)
+                # print("ratio : ", ratio)
                 
                 print(f"template_{key} --> match mastk : {l}")
                 if l >= MIN_MATCH_MASK_COUNT: #or dis_sum <= MAX_DISTANCE):
@@ -87,9 +75,24 @@ def find_matching_boxes(img_train, refrence_images_features, params):
                     h, w = value[IMAGE_INDEX].shape[:2]
                     corners = np.float32([[0, 0], [0, h-1], [w-1, h-1], [w-1, 0]]).reshape(-1, 1, 2)
                     transformed_corners = cv2.perspectiveTransform(corners, H)
-                    if ratio <= MAX_RATIO and dis_sum <= MAX_DISTANCE:
+
+                    # Changing the size of template base on target that the algorithm found
+                    dst_int = np.int32(transformed_corners)
+                    x, y, w_d, h_d = cv2.boundingRect(dst_int)
+                    dsize = (w_d, h_d)
+                
+                    # Resize the image
+                    resized_image = cv2.resize(value[IMAGE_INDEX], dsize, interpolation=cv2.INTER_LINEAR)
+                    resized_image_gray = cv2.cvtColor(resized_image, cv2.COLOR_BGR2GRAY)
+                    # Template_matching
+                    matching_img_gray = cv2.cvtColor(matching_img, cv2.COLOR_BGR2GRAY)
+                    max_Val = template_matching_Zncc(matching_img_gray, resized_image_gray)
+
+                    print("max_val : ", max_Val)
+
+                    if max_Val >= MIN_MAX_VAL:
                         matched_boxes.append((transformed_corners, key))
-                        print("injam!!!!!!!!!!!!!!!!!!!!!!!!!!")
+                
                         # You can uncomment the following lines to see the matching process
                         # Draw the bounding box
                         img1_with_box = matching_img.copy()
@@ -97,8 +100,9 @@ def find_matching_boxes(img_train, refrence_images_features, params):
                         cv2.polylines(matching_result, [np.int32(transformed_corners)], True, (255, 0, 0), 3, cv2.LINE_AA)
                         plt.imshow(matching_result, cmap='gray')
                         plt.show()
-
-                        count += 1
+                    else:
+                        print("maxval is not big enough :)")
+                    count += 1
 
                     # Create a mask and fill the matched area with near neighbors
                     matching_img2 = cv2.cvtColor(matching_img, cv2.COLOR_BGR2GRAY) 
@@ -106,6 +110,7 @@ def find_matching_boxes(img_train, refrence_images_features, params):
                     cv2.fillPoly(mask, [np.int32(transformed_corners)], 0)
                     mask = cv2.bitwise_not(mask)
                     matching_img = cv2.inpaint(matching_img, mask, 3, cv2.INPAINT_TELEA)
+                    
                     
                 else:
                     print("there isn't enough match MASK numbers : ", l)
@@ -149,75 +154,75 @@ def denoising1(noisy_img):
 
   return bilateral_denoised
 
-def color_matching(key_train, key_ref, matchmask, img_train, img_ref, good_matches):
-    MAX_DIST = 34
-    print("................ATTENTION........................")
-    img_t = np.copy(img_train)
-    img_r = np.copy(img_ref)
-    img_t = denoise(img_t)
-    # img_t = cv2.cvtColor(img_train, cv2.COLOR_RGB2HSV)
-    # img_r = cv2.cvtColor(img_ref, cv2.COLOR_RGB2HSV)
+# def color_matching(key_train, key_ref, matchmask, img_train, img_ref, good_matches):
+#     MAX_DIST = 34
+#     print("................ATTENTION........................")
+#     img_t = np.copy(img_train)
+#     img_r = np.copy(img_ref)
+#     img_t = denoise(img_t)
+#     # img_t = cv2.cvtColor(img_train, cv2.COLOR_RGB2HSV)
+#     # img_r = cv2.cvtColor(img_ref, cv2.COLOR_RGB2HSV)
 
-# building the corrspondences arrays of good matches
-    point_train = np.float32([ key_train[m.queryIdx].pt for m in good_matches ])
-    point_ref = np.float32([ key_ref[m.trainIdx].pt for m in good_matches ])
+# # building the corrspondences arrays of good matches
+#     point_train = np.float32([ key_train[m.queryIdx].pt for m in good_matches ])
+#     point_ref = np.float32([ key_ref[m.trainIdx].pt for m in good_matches ])
     
-    size_train = np.float32([key_train[m.queryIdx].size for m in good_matches])
-    size_ref = np.float32([key_ref[m.trainIdx].size for m in good_matches])
+#     size_train = np.float32([key_train[m.queryIdx].size for m in good_matches])
+#     size_ref = np.float32([key_ref[m.trainIdx].size for m in good_matches])
 
-    sum = 0
-    counter = 0
-    dis_counter = 0
-    for i in range(len(matchmask)):
-        if matchmask[i] == 1: #inlier
-            x_ref = int(point_ref[i][0])
-            y_ref = int(point_ref[i][1])
-            size_r = int(size_ref[i] * math.sqrt(2))
-            # size_r = 100
-            window_red_r = img_r[y_ref:y_ref+size_r, x_ref:x_ref+size_r, 0]
-            window_green_r = img_r[y_ref:y_ref+size_r, x_ref:x_ref+size_r, 1]
-            window_blue_r = img_r[y_ref:y_ref+size_r, x_ref:x_ref+size_r, 2]
-            # img_ref[y_ref:y_ref+size_r, x_ref:x_ref+size_r]
+#     sum = 0
+#     counter = 0
+#     dis_counter = 0
+#     for i in range(len(matchmask)):
+#         if matchmask[i] == 1: #inlier
+#             x_ref = int(point_ref[i][0])
+#             y_ref = int(point_ref[i][1])
+#             size_r = int(size_ref[i] * math.sqrt(2))
+#             # size_r = 100
+#             window_red_r = img_r[y_ref:y_ref+size_r, x_ref:x_ref+size_r, 0]
+#             window_green_r = img_r[y_ref:y_ref+size_r, x_ref:x_ref+size_r, 1]
+#             window_blue_r = img_r[y_ref:y_ref+size_r, x_ref:x_ref+size_r, 2]
+#             # img_ref[y_ref:y_ref+size_r, x_ref:x_ref+size_r]
             
-            x_t = int(point_train[i][0])
-            y_t = int(point_train[i][1])
-            size_t = int(size_train[i] * math.sqrt(2))
-            window_red_t = img_t[y_t:y_t+size_t, x_t:x_t+size_t, 0]
-            window_green_t = img_t[y_t:y_t+size_t, x_t:x_t+size_t, 1]
-            window_blue_t = img_t[y_t:y_t+size_t, x_t:x_t+size_t, 2]
+#             x_t = int(point_train[i][0])
+#             y_t = int(point_train[i][1])
+#             size_t = int(size_train[i] * math.sqrt(2))
+#             window_red_t = img_t[y_t:y_t+size_t, x_t:x_t+size_t, 0]
+#             window_green_t = img_t[y_t:y_t+size_t, x_t:x_t+size_t, 1]
+#             window_blue_t = img_t[y_t:y_t+size_t, x_t:x_t+size_t, 2]
 
-            if window_red_r.size != 0 and window_green_r.size != 0 and window_blue_r.size != 0:
-                if window_red_t.size != 0 and window_green_t.size != 0 and window_blue_t.size != 0:
+#             if window_red_r.size != 0 and window_green_r.size != 0 and window_blue_r.size != 0:
+#                 if window_red_t.size != 0 and window_green_t.size != 0 and window_blue_t.size != 0:
                 
-                    try:
-                        value_1 = (np.mean(window_red_r), np.mean(window_green_r), np.mean(window_blue_r))
-                    except ZeroDivisionError:
-                        print("Encountered division by zero while calculating mean value1.")
-                        return 1000000, 100000
+#                     try:
+#                         value_1 = (np.mean(window_red_r), np.mean(window_green_r), np.mean(window_blue_r))
+#                     except ZeroDivisionError:
+#                         print("Encountered division by zero while calculating mean value1.")
+#                         return 1000000, 100000
 
-                    try:
-                        value_2 = (np.mean(window_red_t), np.mean(window_green_t), np.mean(window_blue_t))
-                    except ZeroDivisionError:
-                        print("Encountered division by zero while calculating mean value2.")
-                        return 1000000, 100000  
+#                     try:
+#                         value_2 = (np.mean(window_red_t), np.mean(window_green_t), np.mean(window_blue_t))
+#                     except ZeroDivisionError:
+#                         print("Encountered division by zero while calculating mean value2.")
+#                         return 1000000, 100000  
 
-                    dist = color_distance_compute(value_1, value_2)
-                    sum += dist
-                    dis_counter += 1
-                    print("distance : ", dist)
-                    if dist >= MAX_DIST:
-                        counter += 1
+#                     dist = color_distance_compute(value_1, value_2)
+#                     sum += dist
+#                     dis_counter += 1
+#                     print("distance : ", dist)
+#                     if dist >= MAX_DIST:
+#                         counter += 1
                 
                     
 
-    print(counter)
-    return (sum/dis_counter, counter)
+    # print(counter)
+    # return (sum/dis_counter, counter)
             
 
     
 
-def color_distance_compute(val1, val2):
-    r_1, g_1, b_1 = val1
-    r_2, g_2, b_2 = val2
+# def color_distance_compute(val1, val2):
+#     r_1, g_1, b_1 = val1
+#     r_2, g_2, b_2 = val2
 
-    return math.sqrt((r_1 - r_2)**2 + (g_1 - g_2)**2 + (b_1 - b_2)**2)
+#     return math.sqrt((r_1 - r_2)**2 + (g_1 - g_2)**2 + (b_1 - b_2)**2)
