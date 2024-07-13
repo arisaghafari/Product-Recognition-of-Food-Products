@@ -20,6 +20,9 @@ def find_matching_boxes(img_train, refrence_images_features):
     MIN_MATCH_COUNT = 302
     MIN_MATCH_MASK_COUNT = 10
     MIN_MAX_VAL = 0.37
+    MIN_DOUBLE_MATCH_COUNT = 215
+    MIN_DOUBLE_MATCH_MASK_COUNT = 40
+    MAX_DOUBLE_RATIO = 0.14
 
     # Initialize the detector and matcher
     detector = cv2.SIFT_create()
@@ -92,17 +95,18 @@ def find_matching_boxes(img_train, refrence_images_features):
                     print("max_val : ", max_Val)
 
                     if max_Val >= MIN_MAX_VAL:
-                        d_match, d_l = double_check_matching(value[IMAGE_INDEX], crop)
-                        
-                        matched_boxes.append((transformed_corners, key))
-                
-                        # You can uncomment the following lines to see the matching process
-                        # Draw the bounding box
-                        img1_with_box = matching_img.copy()
-                        matching_result = cv2.drawMatches(img1_with_box, keypoints_s, value[IMAGE_INDEX], value[KEY_INDEX], good_matches, None, flags=cv2.DrawMatchesFlags_NOT_DRAW_SINGLE_POINTS)
-                        cv2.polylines(matching_result, [np.int32(transformed_corners)], True, (255, 0, 0), 3, cv2.LINE_AA)
-                        plt.imshow(matching_result, cmap='gray')
-                        plt.show()
+                        d_good , d_l, d_ratio = double_check_matching(value[IMAGE_INDEX], crop)
+                        if d_good >= MIN_DOUBLE_MATCH_COUNT and d_l >= MIN_DOUBLE_MATCH_MASK_COUNT and d_ratio > MAX_DOUBLE_RATIO:
+
+                            matched_boxes.append((transformed_corners, key))
+
+                            # You can uncomment the following lines to see the matching process
+                            # Draw the bounding box
+                            img1_with_box = matching_img.copy()
+                            matching_result = cv2.drawMatches(img1_with_box, keypoints_s, value[IMAGE_INDEX], value[KEY_INDEX], good_matches, None, flags=cv2.DrawMatchesFlags_NOT_DRAW_SINGLE_POINTS)
+                            cv2.polylines(matching_result, [np.int32(transformed_corners)], True, (255, 0, 0), 3, cv2.LINE_AA)
+                            plt.imshow(matching_result, cmap='gray')
+                            plt.show()
 
                     count += 1
 
@@ -161,27 +165,50 @@ def double_check_matching(ref, model):
     kp_ref_ch , des_ref_ch, ch_ref, img_ref_ch = sift_channel_sep(ref)
     kp_model_ch , des_model_ch, ch_model, img_model_ch = sift_channel_sep(model)
 
-    kp_ref_merge = kp_ref_ch[0] + kp_ref_ch[1] + kp_ref_ch[2]
-    kp_model_merge = kp_model_ch[0] + kp_model_ch[1] + kp_model_ch[2]
-    des_ref_merge = np.vstack((des_ref_ch[0], des_ref_ch[1], des_ref_ch[2]))
-    des_model_merge = np.vstack((des_model_ch[0], des_model_ch[1], des_model_ch[2]))
-
     bf = cv2.BFMatcher()
-    matches = bf.knnMatch(des_model_merge, des_ref_merge, k=2)
-    good_matches = [m for m, n in matches if m.distance < SIFT_DISTANCE_THRESHOLD * n.distance]
-    good_matches = sorted(good_matches, key=lambda x: x.distance)[:BEST_MATCHES_POINTS]
-    # match_ch[i] = good_matches
-    print("double chek matching : ", len(good_matches))
-    points1 = np.float32([kp_model_merge[m.queryIdx].pt for m in good_matches])
-    points2 = np.float32([kp_ref_merge[m.trainIdx].pt for m in good_matches])
-    # Find homography for drawing the bounding box
+    good_matches_merge = []
+    l = 0
+    for i in range(CHANNEL_INDEX):
+        matches = bf.knnMatch(des_model_ch[i], des_ref_ch[i], k=2)
+        good_matches = [m for m, n in matches if m.distance < SIFT_DISTANCE_THRESHOLD * n.distance]
+        good_matches = sorted(good_matches, key=lambda x: x.distance)[:BEST_MATCHES_POINTS]
+        good_matches_merge += good_matches
+        points1 = np.float32([kp_model_ch[i][m.queryIdx].pt for m in good_matches])
+        points2 = np.float32([kp_ref_ch[i][m.trainIdx].pt for m in good_matches])
+        # Find homography for drawing the bounding box
 
-    H, mask = cv2.findHomography(points2, points1, cv2.RANSAC, 2)
+        H, mask = cv2.findHomography(points2, points1, cv2.RANSAC, 2)
 
-    matchesMask = mask.ravel().tolist()
-    l = sum(matchesMask)
-    print("double check matchmask : ", l)
-    return len(good_matches), l
+        matchesMask = mask.ravel().tolist()
+        l += sum(matchesMask)
+
+    print("double check good matches", len(good_matches_merge))
+    print("double check MASK : ", l)
+    ratio = l/len(good_matches_merge)
+    print("double match ratio : ", ratio)
+    return len(good_matches_merge), l, ratio
+        
+    # kp_ref_merge = kp_ref_ch[0] + kp_ref_ch[1] + kp_ref_ch[2]
+    # kp_model_merge = kp_model_ch[0] + kp_model_ch[1] + kp_model_ch[2]
+    # des_ref_merge = np.vstack((des_ref_ch[0], des_ref_ch[1], des_ref_ch[2]))
+    # des_model_merge = np.vstack((des_model_ch[0], des_model_ch[1], des_model_ch[2]))
+
+    # bf = cv2.BFMatcher()
+    # matches = bf.knnMatch(des_model_merge, des_ref_merge, k=2)
+    # good_matches = [m for m, n in matches if m.distance < SIFT_DISTANCE_THRESHOLD * n.distance]
+    # good_matches = sorted(good_matches, key=lambda x: x.distance)[:BEST_MATCHES_POINTS]
+    # # match_ch[i] = good_matches
+    # print("double chek matching : ", len(good_matches))
+    # points1 = np.float32([kp_model_merge[m.queryIdx].pt for m in good_matches])
+    # points2 = np.float32([kp_ref_merge[m.trainIdx].pt for m in good_matches])
+    # # Find homography for drawing the bounding box
+
+    # H, mask = cv2.findHomography(points2, points1, cv2.RANSAC, 2)
+
+    # matchesMask = mask.ravel().tolist()
+    # l = sum(matchesMask)
+    # print("double check matchmask : ", l)
+    # return len(good_matches), l
 
     # h, w = ref.shape[:2]
     # corners = np.float32([[0, 0], [0, h-1], [w-1, h-1], [w-1, 0]]).reshape(-1, 1, 2)
