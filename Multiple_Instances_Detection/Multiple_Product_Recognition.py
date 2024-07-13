@@ -10,18 +10,16 @@ import math
 IMAGE_INDEX = 0
 KEY_INDEX = 1
 DES_INDEX = 2
-CENTER_INDEX = 3
-V_INDEX = 4
+CHANNEL_INDEX = 3
+SIFT_DISTANCE_THRESHOLD = 0.85
+BEST_MATCHES_POINTS = 500
 
-def find_matching_boxes(img_train, refrence_images_features, params):
+def find_matching_boxes(img_train, refrence_images_features):
 
     # Parameters to tune    
     MIN_MATCH_COUNT = 302
     MIN_MATCH_MASK_COUNT = 10
     MIN_MAX_VAL = 0.37
-    # Parameters and their default values
-    SIFT_DISTANCE_THRESHOLD = params.get('SIFT_distance_threshold', 0.5)
-    BEST_MATCHES_POINTS = params.get('best_matches_points', 20)
 
     # Initialize the detector and matcher
     detector = cv2.SIFT_create()
@@ -80,6 +78,9 @@ def find_matching_boxes(img_train, refrence_images_features, params):
                     dst_int = np.int32(transformed_corners)
                     x, y, w_d, h_d = cv2.boundingRect(dst_int)
                     dsize = (w_d, h_d)
+
+                    crop = matching_img[y:y+h_d, x:x+w_d]
+                    
                 
                     # Resize the image
                     resized_image = cv2.resize(value[IMAGE_INDEX], dsize, interpolation=cv2.INTER_LINEAR)
@@ -91,6 +92,8 @@ def find_matching_boxes(img_train, refrence_images_features, params):
                     print("max_val : ", max_Val)
 
                     if max_Val >= MIN_MAX_VAL:
+                        d_match, d_l = double_check_matching(value[IMAGE_INDEX], crop)
+                        
                         matched_boxes.append((transformed_corners, key))
                 
                         # You can uncomment the following lines to see the matching process
@@ -100,8 +103,7 @@ def find_matching_boxes(img_train, refrence_images_features, params):
                         cv2.polylines(matching_result, [np.int32(transformed_corners)], True, (255, 0, 0), 3, cv2.LINE_AA)
                         plt.imshow(matching_result, cmap='gray')
                         plt.show()
-                    else:
-                        print("maxval is not big enough :)")
+
                     count += 1
 
                     # Create a mask and fill the matched area with near neighbors
@@ -133,6 +135,62 @@ def plot_boxes(img1, matched_boxes):
         cv2.putText(img1, f"refrence_{box[1]}", (x, y - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.9, (36,255,12), 2)
     plt.imshow(img1)
     plt.show()
+
+def sift_channel_sep(img):
+    red, green, blue = cv2.split(img) 
+
+    channel = [red, green, blue]
+    # define channel having all zeros
+    zeros = np.zeros(blue.shape, np.uint8)
+    blueRGB = cv2.merge([zeros,zeros, blue])
+    greenRGB = cv2.merge([zeros,green,zeros])
+    redRGB = cv2.merge([red, zeros,zeros])
+    ref = [redRGB, greenRGB, blueRGB]
+
+    keypoints = {}
+    descriptors = {}
+
+    detector = cv2.SIFT_create()
+
+    for count, c in enumerate(channel): 
+        keypoints[count], descriptors[count] =  detector.detectAndCompute(c, None)
+
+    return keypoints, descriptors, channel, ref
+
+def double_check_matching(ref, model):
+    kp_ref_ch , des_ref_ch, ch_ref, img_ref_ch = sift_channel_sep(ref)
+    kp_model_ch , des_model_ch, ch_model, img_model_ch = sift_channel_sep(model)
+
+    kp_ref_merge = kp_ref_ch[0] + kp_ref_ch[1] + kp_ref_ch[2]
+    kp_model_merge = kp_model_ch[0] + kp_model_ch[1] + kp_model_ch[2]
+    des_ref_merge = np.vstack((des_ref_ch[0], des_ref_ch[1], des_ref_ch[2]))
+    des_model_merge = np.vstack((des_model_ch[0], des_model_ch[1], des_model_ch[2]))
+
+    bf = cv2.BFMatcher()
+    matches = bf.knnMatch(des_model_merge, des_ref_merge, k=2)
+    good_matches = [m for m, n in matches if m.distance < SIFT_DISTANCE_THRESHOLD * n.distance]
+    good_matches = sorted(good_matches, key=lambda x: x.distance)[:BEST_MATCHES_POINTS]
+    # match_ch[i] = good_matches
+    print("double chek matching : ", len(good_matches))
+    points1 = np.float32([kp_model_merge[m.queryIdx].pt for m in good_matches])
+    points2 = np.float32([kp_ref_merge[m.trainIdx].pt for m in good_matches])
+    # Find homography for drawing the bounding box
+
+    H, mask = cv2.findHomography(points2, points1, cv2.RANSAC, 2)
+
+    matchesMask = mask.ravel().tolist()
+    l = sum(matchesMask)
+    print("double check matchmask : ", l)
+    return len(good_matches), l
+
+    # h, w = ref.shape[:2]
+    # corners = np.float32([[0, 0], [0, h-1], [w-1, h-1], [w-1, 0]]).reshape(-1, 1, 2)
+    # transformed_corners = cv2.perspectiveTransform(corners, H)
+                
+    # cv2.polylines(model, [np.int32(transformed_corners)], True, (0, 255, 255), 5, cv2.LINE_AA)
+    # plt.imshow(model)
+    # plt.show()
+
 
 def denoise(src):
     # Create the AdaptiveManifoldFilter with required arguments
